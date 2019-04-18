@@ -76,14 +76,16 @@ The reason why we use command line arguments to divide the initial conditions is
 \begin{lstlisting}[language=bash, numbers=left]
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --ntasks=80
+#SBATCH --cpus-per-task=80
 #SBATCH --time=03:00:00
-#SBATCH --job-name integrate-orbits
+#SBATCH --job-name=integrate-orbits
 #SBATCH --mail-user=your.email@mail.utoronto.ca
 #SBATCH --mail-type=ALL
 
 module restore myModule
 source activate myVirtualEnv
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 cd /path/to/directory/with/python/script/
 
@@ -103,7 +105,9 @@ Lines 5-7 indicate the name of the job as well as an email address to which upda
 
 Lines 9 and 10 load a series of software modules required to run \texttt{galpy}, and activate the associated Python virtual environment. An explanation of the Niagara module system can be found in \href{https://github.com/mwbub/scinet-setup}{this guide}, which was mentioned earlier in this section.
 
-Finally, the remaining lines are used to submit the actual integration script. Note that we pass the current array index to the script via the aforementioned \texttt{\$SLURM\_ARRAY\_TASK\_ID} variable. The remaining two script parameters are the same as explained above.
+On line 12, we set the number of threads to be used by OpenMP to the number that we previously indicated on line 3. If we omit this step, OpenMP will default to using the maximum number of cores, in this case 80.
+
+Finally, the remaining lines are used to run the actual integration script. Note that on line 16, we pass the current array index to the script via the aforementioned \texttt{\$SLURM\_ARRAY\_TASK\_ID} variable. The remaining two command line arguments are the same as explained above.
 
 Once this array job completes, 200 separate folders named \texttt{batch1}, \texttt{batch2}, \texttt{batch3}, etc., will be contained in the \texttt{\$SCRATCH/data/results} directory. Each of these batch folders will contain several files representing the results of the integration at each time step for that batch of initial conditions. For instance, if there are 100 time steps in total, then the \texttt{batch1} will contain 100 files named \texttt{batch1\_0.fits}, \texttt{batch1\_1.fits}, $\ldots$, \texttt{batch1\_99.fits}, where \texttt{batch1\_0.fits} represents the first time step (i.e., the initial conditions) and \texttt{batch1\_99.fits} represents the final time step of the first batch. Each individual \texttt{.fits} file will contain 7 columns named \texttt{R}, \texttt{phi}, \texttt{z}, \texttt{vR}, \texttt{vT}, \texttt{vz}, and \texttt{t}, where the first 6 columns represent the Galactocentric cylindrical coordinates, and the last column represents the time. All values are given in \texttt{galpy}'s internal units. You can easily combine each batch together by concatenating the appropriate \texttt{.fits} files to each other, for instance by using \texttt{astropy}'s \texttt{Table} class or some other \texttt{.fits} reader to concatenate \texttt{batch1\_0.fits}, \texttt{batch2\_0.fits}, \texttt{batch3\_0.fits}, etc., and performing a similar procedure for the other time steps.
 
@@ -160,9 +164,6 @@ The short, fast bar model has significantly better qualitative reproduction of t
 
 There is also good qualitative feature reproduction in some other time steps. For instance, $t = -159$ Myr reproduces a broad Sirius feature and a Hercules feature, although the tapering of the horn feature is not present, and a Coma Berenices feature is not visible. However, in general the phase mixing features are heavily time-dependent, and often do not last for more than three frames. Many frames, such as $t = 0$, are not a good fit to the Solar neighbourhood at all, and lack most of the key qualitative features. Given this, we also thought that it would be useful to examine the effect of the spiral arms alone, without the interference of a bar, to help decouple the effects of these two structures.
 
-\subsection{Transient spiral arms with no bar}
-To examine the effect of the spiral arms alone, we ran another model consisting of the spiral arms that were used in the long, slow bar model, but with the bar itself removed. The time evolution of this model is shown in Figure \ref{fig:no-bar}. The time steps range from $t = -178$ to $t = 0$ Myr. The time steps are fairly short because for this model, the integration began at $6 \sigma$ prior to the peak of the first spiral arm, where $\sigma$ is the lifetime of the spiral arms, which is a shorter overall integration time than the 10 bar periods of previous models. Nevertheless, the spiral arms follow the same parameters as used in Figure \ref{fig:lsb}, and peak at the same times. 
-
 \begin{figure}[h]
     \centering
     \includegraphics[width=\textwidth]{plots/three_spirals_no_bar_RvT_vR.pdf}
@@ -170,9 +171,10 @@ To examine the effect of the spiral arms alone, we ran another model consisting 
     \label{fig:no-bar}
 \end{figure}
 
-Two notable features stand out in this model. First, we observe that the spiral arms alone are able to reproduce a broad, Sirius-like feature near $t = -134$ Myr in approximately the same location that it appears in $\textit{Gaia}$. This seems to support the possibility that this feature is a phase mixing effect due to the transient spiral arms. Second, we note that some frames, particularly $t = -178$ Myr, show a good reproduction of the Solar neighbourhood kinematics on their own. Here, we see a broad Sirius feature, an inward-moving feature in the same location as the horn, and an outward-moving feature in the same location as Hercules. This is somewhat concerning, as it becomes increasingly difficult to constrain the parameters of the bar and spiral arms given that many models can reproduce the Solar neighbourhood kinematics. However, as before, these features are all heavily time-dependent. In addition, none of the panels are able to make a convincing reproduction of the tapering shape of the horn structure visible in \textit{Gaia}. In our models, this tapering was always most convincingly reproduced by the OLR of the bar, which is obviously not present here.
+\subsection{Transient spiral arms with no bar}
+To examine the effect of the spiral arms alone, we ran another model consisting of the spiral arms that were used in the long, slow bar model, but with the bar itself removed. The time evolution of this model is shown in Figure \ref{fig:no-bar}. The time steps range from $t = -178$ to $t = 0$ Myr. The time steps are fairly short because for this model, the integration began at $6 \sigma$ prior to the peak of the first spiral arm, where $\sigma$ is the lifetime of the spiral arms, which is a shorter overall integration time than the 10 bar periods of previous models. Nevertheless, the spiral arms follow the same parameters as used in Figure \ref{fig:lsb}, and peak at the same times. 
 
-We also examined the effect of individual spiral arms, prior to the beginning of the complex phase mixing induced by the multiple spiral cycles. Figure \ref{fig:single-spiral} shows an earlier time step of the no bar model, after the peak of the first spiral arm cycle, but prior to the peaks of the second and third cycles. Here, we can see that a single spiral arm cycle results in a regular alternation between outward- and inward-moving ridges in the $R$-$v_\phi$ plane, in contrast to the chaotic structures seen in prior figures. As such, it appears that the phase mixing features visible in Figure \ref{fig:no-bar} and others are due to the complex interactions of multiple spiral arm cycles, rather than a single spiral cycle alone. 
+Two notable features stand out in this model. First, we observe that the spiral arms alone are able to reproduce a broad, Sirius-like feature near $t = -134$ Myr in approximately the same location that it appears in $\textit{Gaia}$. This seems to support the possibility that this feature is a phase mixing effect due to the transient spiral arms. Second, we note that some frames, particularly $t = -178$ Myr, show a good reproduction of the Solar neighbourhood kinematics on their own. Here, we see a broad Sirius feature, an inward-moving feature in the same location as the horn, and an outward-moving feature in the same location as Hercules. This is somewhat concerning, as it becomes increasingly difficult to constrain the parameters of the bar and spiral arms given that many models can reproduce the Solar neighbourhood kinematics. However, as before, these features are all heavily time-dependent. In addition, none of the panels are able to make a convincing reproduction of the tapering shape of the horn structure visible in \textit{Gaia}. In our models, this tapering was always most convincingly reproduced by the OLR of the bar, which is obviously not present here.
 
 \begin{figure}[h]
     \centering
@@ -180,6 +182,8 @@ We also examined the effect of individual spiral arms, prior to the beginning of
     \caption{An earlier time step of the model shown in Figure \ref{fig:no-bar}, after the peak of the first spiral, but shortly before the peaks of the second and third spirals.}
     \label{fig:single-spiral}
 \end{figure}
+
+We also examined the effect of individual spiral arms, prior to the beginning of the complex phase mixing induced by the multiple spiral cycles. Figure \ref{fig:single-spiral} shows an earlier time step of the no bar model, after the peak of the first spiral arm cycle, but prior to the peaks of the second and third cycles. Here, we can see that a single spiral arm cycle results in a regular alternation between outward- and inward-moving ridges in the $R$-$v_\phi$ plane, in contrast to the chaotic structures seen in prior figures. As such, it appears that the phase mixing features visible in Figure \ref{fig:no-bar} and others are due to the complex interactions of multiple spiral arm cycles, rather than a single spiral cycle alone. 
 
 \section{Conclusions}
 The test particle simulations have provided several useful insights that are difficult to discover using the backward integration technique alone. In examining the $R$-$v_\phi$ plane for several transient spiral arm \& bar models, we have demonstrated that many of the structures seen in this plane are heavily time-dependent. Whereas in some time steps we find a good qualitative reproduction of the Solar neighbourhood kinematics, in others the reproduction is far less good. Further to this, we have also demonstrated that the chaotic nature of the phase mixing induced by the spiral arms allows several different types of models to reproduce the Solar neighbourhood kinematics, including a model consisting of solely transient spiral arms and nothing else. Although this is not good news for the purpose of constraining the bar and spiral arm parameters, it is useful to know the limits of our knowledge, and that we will likely need to rely on additional data before we can conclusively constrain the spiral arm parameters for the Milky Way.
